@@ -58,7 +58,7 @@ if upload_file:
             st.metric("Custo Total de Correção", f"R$ {custo_total:,.2f}")
         with col4:
             avg_cycle = filtered_df['Tempo de Ciclo (min)'].mean()
-            st.metric("Tempo Médio de Ciclo", f"{avg_cycle:.1f} min")
+            st.metric("Tempo Médio de Análise", f"{avg_cycle:.1f} min")
 
         # --- VISUALIZAÇÕES ---
         
