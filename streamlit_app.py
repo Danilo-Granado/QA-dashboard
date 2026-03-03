@@ -22,6 +22,9 @@ if upload_file:
 
     # --- FILTROS LATERAIS ---
     st.sidebar.header("Filtros de Visualização")
+
+    # Toggle de normalização
+    normalizar = st.sidebar.toggle("Normalização", value=False)
     
     # Lista única de produtos
     lista_produtos = df['Produto'].unique()
@@ -33,15 +36,9 @@ if upload_file:
         default=[lista_produtos[0]] if lista_produtos.all() else None,
         help="Selecione um ou mais produtos para comparar. Se muitos forem selecionados, os gráficos podem ficar poluídos."
     )
-    
-    analistas = st.sidebar.multiselect(
-        "Selecionar Analista", 
-        options=df['Analista da Qualidade'].unique(), 
-        default=df['Analista da Qualidade'].unique()
-    )
-    
+  
     # Aplicando o filtro
-    filtered_df = df[(df['Produto'].isin(produtos_selecionados)) & (df['Analista da Qualidade'].isin(analistas))]
+    filtered_df = df[(df['Produto'].isin(produtos_selecionados))]
 
     if not produtos_selecionados:
         st.warning("⚠️ Por favor, selecione pelo menos um **Produto** no menu lateral para visualizar as análises.")
@@ -62,45 +59,55 @@ if upload_file:
 
         # --- VISUALIZAÇÕES ---
         
-        # 1. Estabilidade por Produto
-        st.subheader("📈 Estabilidade de Parâmetros por Produto")
-        metrica = st.selectbox("Escolha o parâmetro para análise", ["PH", "Viscosidade", "Densidade"])
-        
-        # Se houver muitos produtos, avisamos que a visualização pode ser difícil
-        if len(produtos_selecionados) > 6:
-            st.info("💡 Dica: Você selecionou muitos produtos. Para uma análise detalhada, tente selecionar no máximo 4 por vez.")
+        # --- LÓGICA DE PLOTAGEM ---
+        metricas_disponiveis = ["PH", "Viscosidade", "Densidade"]
+        metrica_alvo = st.sidebar.selectbox("Métrica para o Gráfico", metricas_disponiveis)
+        coluna_para_plot = metrica_alvo
+        titulo_y = f"Valor Real de {metrica_alvo}"
 
-        fig_stab = px.scatter(
-            filtered_df, 
-            x='Data', 
-            y=metrica, 
-            facet_col='Produto', 
-            facet_col_wrap=2, # No máximo 2 colunas para manter a legibilidade
-            #markers=True,
+        if normalizar:
+            # Calculamos o Z-Score para cada produto individualmente
+            # (Valor - Média do Produto) / Desvio Padrão do Produto
+            filtered_df['Z-Score'] = filtered_df.groupby('Produto')[metrica_alvo].transform(
+                lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
+            )
+            coluna_para_plot = 'Z-Score'
+            titulo_y = f"Estabilidade (Z-Score de {metrica_alvo})"
+            st.info("💡 **Modo Normalizado:** O valor '0' no gráfico representa a média exata de cada produto.")
+        
+        # Criando o gráfico único
+        fig = px.line(
+            filtered_df,
+            x='Data',
+            y=coluna_para_plot,
             color='Produto',
-            title=f"Tendência de {metrica} (Escalas Independentes por Produto)"
+            markers=True,
+            title=f"Comparativo de {metrica_alvo}: " + ("Escala Normalizada" if normalizar else "Valores Reais")
         )
-        fig_stab.update_yaxes(matches=None) # Mantém as escalas verticais independentes
-        st.plotly_chart(fig_stab, use_container_width=True)
+
+        if normalizar:
+            fig.add_hline(y=0, line_dash="dash", line_color="black", annotation_text="Média Individual")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # --- TABELA DE ESTABILIDADE ---
+        st.subheader("📊 Resumo Estatístico")
+        resumo = filtered_df.groupby('Produto')[metrica_alvo].agg(['mean', 'std', 'min', 'max']).reset_index()
+        resumo.columns = ['Produto', 'Média', 'Desvio Padrão (Volatilidade)', 'Mín', 'Máx']
+        st.dataframe(resumo, use_container_width=True)
 
         # 2. Motivos de Correção e Custos
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.subheader("⚠️ Motivos de Correção (Pareto)")
-            df_correcoes = filtered_df[~filtered_df['is_fpy']]
-            if not df_correcoes.empty:
-                pareto_data = df_correcoes['Motivo da Correção '].value_counts().reset_index()
-                pareto_data.columns = ['Motivo', 'Frequência']
-                fig_pareto = px.bar(pareto_data, x='Motivo', y='Frequência', color='Motivo')
-                st.plotly_chart(fig_pareto, use_container_width=True)
-            else:
-                st.write("Nenhuma correção registrada para os produtos selecionados.")
+
+        st.subheader("⚠️ Motivos de Correção (Pareto)")
+        df_correcoes = filtered_df[~filtered_df['is_fpy']]
+        if not df_correcoes.empty:
+            pareto_data = df_correcoes['Motivo da Correção '].value_counts().reset_index()
+            pareto_data.columns = ['Motivo', 'Frequência']
+            fig_pareto = px.bar(pareto_data, x='Motivo', y='Frequência', color='Motivo')
+            st.plotly_chart(fig_pareto, use_container_width=True)
+        else:
+            st.write("Nenhuma correção registrada para os produtos selecionados.")
             
-        with col_b:
-            st.subheader("💰 Distribuição de Custos")
-            cost_prod = filtered_df.groupby('Produto')['Custo da Correção'].sum().reset_index()
-            fig_cost = px.pie(cost_prod, values='Custo da Correção', names='Produto', hole=0.4)
-            st.plotly_chart(fig_cost, use_container_width=True)
 
         # Tabela de Dados
         if st.checkbox("Visualizar Tabela de Dados"):
