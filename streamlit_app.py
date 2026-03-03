@@ -76,17 +76,19 @@ if upload_file:
             st.info("💡 **Modo Normalizado:** O valor '0' no gráfico representa a média exata de cada produto.")
         
         # Criando o gráfico único
-        fig = px.line(
+        fig = px.scatter(
             filtered_df,
             x='Data',
             y=coluna_para_plot,
             color='Produto',
-            markers=True,
             title=f"Comparativo de {metrica_alvo}: " + ("Escala Normalizada" if normalizar else "Valores Reais")
         )
 
         if normalizar:
             fig.add_hline(y=0, line_dash="dash", line_color="black", annotation_text="Média Individual")
+
+            fig.add_hline(y=3, line_dash='dash', line_color="red")
+            fig.add_hline(y=-3, line_dash='dash', line_color="red")
 
         st.plotly_chart(fig, use_container_width=True)
 
