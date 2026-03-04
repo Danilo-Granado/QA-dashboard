@@ -2,7 +2,7 @@
 
 A simple Streamlit app to display product analysis data and trends
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://dashboard-dangr1006.streamlit.app/)
 
 ### How to run it on your own machine
 
